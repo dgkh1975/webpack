@@ -123,6 +123,19 @@ export type LibraryType =
  */
 export type UmdNamedDefine = boolean;
 /**
+ * The 'publicPath' specifies the public URL address of the output files when referenced in a browser.
+ */
+export type PublicPath = "auto" | RawPublicPath;
+/**
+ * The 'publicPath' specifies the public URL address of the output files when referenced in a browser.
+ */
+export type RawPublicPath =
+	| string
+	| ((
+			pathData: import("../lib/Compilation").PathData,
+			assetInfo?: import("../lib/Compilation").AssetInfo
+	  ) => string);
+/**
  * The name of the runtime chunk. If set a runtime chunk with this name is created or an existing entrypoint is used as runtime.
  */
 export type EntryRuntime = string;
@@ -227,21 +240,8 @@ export type RuleSetConditionOrConditions = RuleSetCondition | RuleSetConditions;
 export type RuleSetCondition =
 	| RegExp
 	| string
-	| {
-			/**
-			 * Logical AND.
-			 */
-			and?: RuleSetConditions;
-			/**
-			 * Logical NOT.
-			 */
-			not?: RuleSetConditions;
-			/**
-			 * Logical OR.
-			 */
-			or?: RuleSetConditions;
-	  }
 	| ((value: string) => boolean)
+	| RuleSetLogicalConditions
 	| RuleSetConditions;
 /**
  * A list of rule conditions.
@@ -259,21 +259,8 @@ export type RuleSetConditionOrConditionsAbsolute =
 export type RuleSetConditionAbsolute =
 	| RegExp
 	| string
-	| {
-			/**
-			 * Logical AND.
-			 */
-			and?: RuleSetConditionsAbsolute;
-			/**
-			 * Logical NOT.
-			 */
-			not?: RuleSetConditionsAbsolute;
-			/**
-			 * Logical OR.
-			 */
-			or?: RuleSetConditionsAbsolute;
-	  }
 	| ((value: string) => boolean)
+	| RuleSetLogicalConditionsAbsolute
 	| RuleSetConditionsAbsolute;
 /**
  * A list of rule conditions matching an absolute path.
@@ -438,6 +425,10 @@ export type ChunkLoadTimeout = number;
  */
 export type ChunkLoadingGlobal = string;
 /**
+ * Clean the output directory before emit.
+ */
+export type Clean = boolean | CleanOptions;
+/**
  * Check if to be emitted file already exists and have the same content before writing to output filesystem.
  */
 export type CompareBeforeEmit = boolean;
@@ -534,16 +525,6 @@ export type Path = string;
  */
 export type Pathinfo = "verbose" | boolean;
 /**
- * The `publicPath` specifies the public URL address of the output files when referenced in a browser.
- */
-export type PublicPath =
-	| "auto"
-	| string
-	| ((
-			pathData: import("../lib/Compilation").PathData,
-			assetInfo?: import("../lib/Compilation").AssetInfo
-	  ) => string);
-/**
  * This option enables loading async chunks via a custom script type, such as script type="module".
  */
 export type ScriptType = false | "text/javascript" | "module";
@@ -556,7 +537,11 @@ export type SourceMapFilename = string;
  */
 export type SourcePrefix = string;
 /**
- * Handles exceptions in module loading correctly at a performance cost.
+ * Handles error in module loading correctly at a performance cost. This will handle module error compatible with the EcmaScript Modules spec.
+ */
+export type StrictModuleErrorHandling = boolean;
+/**
+ * Handles exceptions in module loading correctly at a performance cost (Deprecated). This will handle module error compatible with the Node.js CommonJS way.
  */
 export type StrictModuleExceptionHandling = boolean;
 /**
@@ -619,6 +604,51 @@ export type StatsValue =
 	  )
 	| boolean
 	| StatsOptions;
+/**
+ * Filtering modules.
+ */
+export type ModuleFilterTypes = ModuleFilterItemTypes[] | ModuleFilterItemTypes;
+/**
+ * Filtering value, regexp or function.
+ */
+export type ModuleFilterItemTypes =
+	| RegExp
+	| string
+	| ((
+			name: string,
+			module: import("../lib/stats/DefaultStatsFactoryPlugin").StatsModule,
+			type: "module" | "chunk" | "root-of-chunk" | "nested"
+	  ) => boolean);
+/**
+ * Filtering modules.
+ */
+export type AssetFilterTypes = AssetFilterItemTypes[] | AssetFilterItemTypes;
+/**
+ * Filtering value, regexp or function.
+ */
+export type AssetFilterItemTypes =
+	| RegExp
+	| string
+	| ((
+			name: string,
+			asset: import("../lib/stats/DefaultStatsFactoryPlugin").StatsAsset
+	  ) => boolean);
+/**
+ * Filtering warnings.
+ */
+export type WarningFilterTypes =
+	| WarningFilterItemTypes[]
+	| WarningFilterItemTypes;
+/**
+ * Filtering value, regexp or function.
+ */
+export type WarningFilterItemTypes =
+	| RegExp
+	| string
+	| ((
+			warning: import("../lib/stats/DefaultStatsFactoryPlugin").StatsError,
+			value: string
+	  ) => boolean);
 /**
  * Environment to build for. An array of environments to build for all of them when possible.
  */
@@ -848,6 +878,10 @@ export interface WebpackOptions {
  */
 export interface MemoryCacheOptions {
 	/**
+	 * Number of generations unused cache entries stay in memory cache at minimum (1 = may be removed after unused for a single compilation, ..., Infinity: kept forever).
+	 */
+	maxGenerations?: number;
+	/**
 	 * In memory caching.
 	 */
 	type: "memory";
@@ -856,6 +890,10 @@ export interface MemoryCacheOptions {
  * Options object for persistent file-based caching.
  */
 export interface FileCacheOptions {
+	/**
+	 * Allows to collect unused memory allocated during deserialization. This requires copying data into smaller buffers and has a performance cost.
+	 */
+	allowCollectingMemory?: boolean;
 	/**
 	 * Dependencies the build depends on (in multiple categories, default categories: 'defaultWebpack').
 	 */
@@ -878,11 +916,11 @@ export interface FileCacheOptions {
 	 */
 	hashAlgorithm?: string;
 	/**
-	 * Time in ms after which idle period the cache storing should happen (only for store: 'pack' or 'idle').
+	 * Time in ms after which idle period the cache storing should happen (only for store: 'pack').
 	 */
 	idleTimeout?: number;
 	/**
-	 * Time in ms after which idle period the initial cache storing should happen (only for store: 'pack' or 'idle').
+	 * Time in ms after which idle period the initial cache storing should happen (only for store: 'pack').
 	 */
 	idleTimeoutForInitialStore?: number;
 	/**
@@ -894,9 +932,21 @@ export interface FileCacheOptions {
 	 */
 	managedPaths?: string[];
 	/**
+	 * Time for which unused cache entries stay in the filesystem cache at minimum (in milliseconds).
+	 */
+	maxAge?: number;
+	/**
+	 * Number of generations unused cache entries stay in memory cache at minimum (0 = no memory cache used, 1 = may be removed after unused for a single compilation, ..., Infinity: kept forever). Cache entries will be deserialized from disk when removed from memory cache.
+	 */
+	maxMemoryGenerations?: number;
+	/**
 	 * Name for the cache. Different names will lead to different coexisting caches.
 	 */
 	name?: string;
+	/**
+	 * Track and log detailed timing information for individual cache items.
+	 */
+	profile?: boolean;
 	/**
 	 * When to store data to the filesystem. (pack: Store data when compiler is idle in a single file).
 	 */
@@ -953,6 +1003,10 @@ export interface EntryDescription {
 	 * Options for library.
 	 */
 	library?: LibraryOptions;
+	/**
+	 * The 'publicPath' specifies the public URL address of the output files when referenced in a browser.
+	 */
+	publicPath?: PublicPath;
 	/**
 	 * The name of the runtime chunk. If set a runtime chunk with this name is created or an existing entrypoint is used as runtime.
 	 */
@@ -1038,6 +1092,10 @@ export interface Experiments {
 	 */
 	asyncWebAssembly?: boolean;
 	/**
+	 * Enable build-time execution of modules from the module graph for plugins and loaders.
+	 */
+	executeModule?: boolean;
+	/**
 	 * Enable module and chunk layers.
 	 */
 	layers?: boolean;
@@ -1068,6 +1126,14 @@ export interface Experiments {
 				 * Enable/disable lazy compilation for entries.
 				 */
 				entries?: boolean;
+				/**
+				 * Enable/disable lazy compilation for import() modules.
+				 */
+				imports?: boolean;
+				/**
+				 * Specify which entrypoints or import()ed modules should be lazily compiled. This is matched with the imported module and not the entrypoint name.
+				 */
+				test?: RegExp | string | ((module: import("../lib/Module")) => boolean);
 		  };
 	/**
 	 * Allow output javascript files as module source type.
@@ -1124,6 +1190,18 @@ export interface ExternalsPresets {
  */
 export interface InfrastructureLogging {
 	/**
+	 * Only appends lines to the output. Avoids updating existing output e. g. for status messages. This option is only used when no custom console is provided.
+	 */
+	appendOnly?: boolean;
+	/**
+	 * Enables/Disables colorful output. This option is only used when no custom console is provided.
+	 */
+	colors?: boolean;
+	/**
+	 * Custom console used for logging.
+	 */
+	console?: Console;
+	/**
 	 * Enable debug logging for specific loggers.
 	 */
 	debug?: boolean | FilterTypes;
@@ -1131,6 +1209,10 @@ export interface InfrastructureLogging {
 	 * Log level.
 	 */
 	level?: "none" | "error" | "warn" | "info" | "log" | "verbose";
+	/**
+	 * Stream used for logging output. Defaults to process.stderr. This option is only used when no custom console is provided.
+	 */
+	stream?: NodeJS.WritableStream;
 }
 /**
  * Custom values available in the loader context.
@@ -1314,6 +1396,10 @@ export interface RuleSetRule {
 	 */
 	rules?: RuleSetRule[];
 	/**
+	 * Match module scheme.
+	 */
+	scheme?: RuleSetConditionOrConditions;
+	/**
 	 * Flags a module as with or without side effects.
 	 */
 	sideEffects?: boolean;
@@ -1329,6 +1415,40 @@ export interface RuleSetRule {
 	 * Modifiers applied to the module when rule is matched.
 	 */
 	use?: RuleSetUse;
+}
+/**
+ * Logic operators used in a condition matcher.
+ */
+export interface RuleSetLogicalConditions {
+	/**
+	 * Logical AND.
+	 */
+	and?: RuleSetConditions;
+	/**
+	 * Logical NOT.
+	 */
+	not?: RuleSetCondition;
+	/**
+	 * Logical OR.
+	 */
+	or?: RuleSetConditions;
+}
+/**
+ * Logic operators used in a condition matcher.
+ */
+export interface RuleSetLogicalConditionsAbsolute {
+	/**
+	 * Logical AND.
+	 */
+	and?: RuleSetConditionsAbsolute;
+	/**
+	 * Logical NOT.
+	 */
+	not?: RuleSetConditionAbsolute;
+	/**
+	 * Logical OR.
+	 */
+	or?: RuleSetConditionsAbsolute;
 }
 /**
  * Options object for resolving requests.
@@ -1842,6 +1962,10 @@ export interface Output {
 	 */
 	chunkLoadingGlobal?: ChunkLoadingGlobal;
 	/**
+	 * Clean the output directory before emit.
+	 */
+	clean?: Clean;
+	/**
 	 * Check if to be emitted file already exists and have the same content before writing to output filesystem.
 	 */
 	compareBeforeEmit?: CompareBeforeEmit;
@@ -1950,7 +2074,7 @@ export interface Output {
 	 */
 	pathinfo?: Pathinfo;
 	/**
-	 * The `publicPath` specifies the public URL address of the output files when referenced in a browser.
+	 * The 'publicPath' specifies the public URL address of the output files when referenced in a browser.
 	 */
 	publicPath?: PublicPath;
 	/**
@@ -1966,9 +2090,17 @@ export interface Output {
 	 */
 	sourcePrefix?: SourcePrefix;
 	/**
-	 * Handles exceptions in module loading correctly at a performance cost.
+	 * Handles error in module loading correctly at a performance cost. This will handle module error compatible with the EcmaScript Modules spec.
+	 */
+	strictModuleErrorHandling?: StrictModuleErrorHandling;
+	/**
+	 * Handles exceptions in module loading correctly at a performance cost (Deprecated). This will handle module error compatible with the Node.js CommonJS way.
 	 */
 	strictModuleExceptionHandling?: StrictModuleExceptionHandling;
+	/**
+	 * Use a Trusted Types policy to create urls for chunks. 'output.uniqueName' is used a default policy name. Passing a string sets a custom policy name.
+	 */
+	trustedTypes?: true | string | TrustedTypes;
 	/**
 	 * If `output.libraryTarget` is set to umd and `output.library` is set, setting this to true will name the AMD module.
 	 */
@@ -1993,6 +2125,19 @@ export interface Output {
 	 * The method of loading WebAssembly Modules (methods included by default are 'fetch' (web/WebWorker), 'async-node' (node.js), but others might be added by plugins).
 	 */
 	workerWasmLoading?: WasmLoading;
+}
+/**
+ * Advanced options for cleaning assets.
+ */
+export interface CleanOptions {
+	/**
+	 * Log the assets that should be removed instead of deleting them.
+	 */
+	dry?: boolean;
+	/**
+	 * Keep these assets.
+	 */
+	keep?: RegExp | string | ((filename: string) => boolean);
 }
 /**
  * The abilities of the environment where the webpack generated code should run.
@@ -2026,6 +2171,15 @@ export interface Environment {
 	 * The environment supports EcmaScript Module syntax to import EcmaScript modules (import ... from '...').
 	 */
 	module?: boolean;
+}
+/**
+ * Use a Trusted Types policy to create urls for chunks.
+ */
+export interface TrustedTypes {
+	/**
+	 * The name of the Trusted Types policy created by webpack to serve bundle chunks.
+	 */
+	policyName?: string;
 }
 /**
  * Configuration object for web performance recommendations.
@@ -2247,7 +2401,7 @@ export interface StatsOptions {
 	/**
 	 * Add details to errors (like resolving log).
 	 */
-	errorDetails?: boolean;
+	errorDetails?: "auto" | boolean;
 	/**
 	 * Add internal stack trace to errors.
 	 */
@@ -2263,15 +2417,15 @@ export interface StatsOptions {
 	/**
 	 * Please use excludeModules instead.
 	 */
-	exclude?: boolean | FilterTypes;
+	exclude?: boolean | ModuleFilterTypes;
 	/**
 	 * Suppress assets that match the specified filters. Filters can be Strings, RegExps or Functions.
 	 */
-	excludeAssets?: FilterTypes;
+	excludeAssets?: AssetFilterTypes;
 	/**
 	 * Suppress modules that match the specified filters. Filters can be Strings, RegExps, Booleans or Functions.
 	 */
-	excludeModules?: boolean | FilterTypes;
+	excludeModules?: boolean | ModuleFilterTypes;
 	/**
 	 * Group assets by how their are related to chunks.
 	 */
@@ -2312,6 +2466,10 @@ export interface StatsOptions {
 	 * Group modules by their path.
 	 */
 	groupModulesByPath?: boolean;
+	/**
+	 * Group modules by their type.
+	 */
+	groupModulesByType?: boolean;
 	/**
 	 * Add the hash of the compilation.
 	 */
@@ -2431,7 +2589,7 @@ export interface StatsOptions {
 	/**
 	 * Suppress listing warnings that match the specified filters (they will still be counted). Filters can be Strings, RegExps or Functions.
 	 */
-	warningsFilter?: FilterTypes;
+	warningsFilter?: WarningFilterTypes;
 }
 /**
  * Options for the watcher.
@@ -2503,9 +2661,17 @@ export interface AssetParserOptions {
  */
 export interface AssetResourceGeneratorOptions {
 	/**
+	 * Emit an output asset from this asset module. This can be set to 'false' to omit emitting e. g. for SSR.
+	 */
+	emit?: boolean;
+	/**
 	 * Specifies the filename template of output files on disk. You must **not** specify an absolute path here, but the path may contain folders separated by '/'! The specified path is joined with the value of the 'output.path' option to determine the location on disk.
 	 */
 	filename?: FilenameTemplate;
+	/**
+	 * The 'publicPath' specifies the public URL address of the output files when referenced in a browser.
+	 */
+	publicPath?: RawPublicPath;
 }
 /**
  * No generator options are supported for this module type.
@@ -2543,6 +2709,10 @@ export interface EntryDescriptionNormalized {
 	 * Options for library.
 	 */
 	library?: LibraryOptions;
+	/**
+	 * The 'publicPath' specifies the public URL address of the output files when referenced in a browser.
+	 */
+	publicPath?: PublicPath;
 	/**
 	 * The name of the runtime chunk. If set a runtime chunk with this name is created or an existing entrypoint is used as runtime.
 	 */
@@ -2685,7 +2855,7 @@ export interface JavascriptParserOptions {
 	/**
 	 * Enable/disable parsing of new URL() syntax.
 	 */
-	url?: boolean;
+	url?: "relative" | boolean;
 	/**
 	 * Disable or configure parsing of WebWorker syntax like new Worker() or navigator.serviceWorker.register().
 	 */
@@ -2765,6 +2935,10 @@ export interface OutputNormalized {
 	 * The global variable used by webpack for loading of chunks.
 	 */
 	chunkLoadingGlobal?: ChunkLoadingGlobal;
+	/**
+	 * Clean the output directory before emit.
+	 */
+	clean?: Clean;
 	/**
 	 * Check if to be emitted file already exists and have the same content before writing to output filesystem.
 	 */
@@ -2866,7 +3040,7 @@ export interface OutputNormalized {
 	 */
 	pathinfo?: Pathinfo;
 	/**
-	 * The `publicPath` specifies the public URL address of the output files when referenced in a browser.
+	 * The 'publicPath' specifies the public URL address of the output files when referenced in a browser.
 	 */
 	publicPath?: PublicPath;
 	/**
@@ -2882,9 +3056,17 @@ export interface OutputNormalized {
 	 */
 	sourcePrefix?: SourcePrefix;
 	/**
-	 * Handles exceptions in module loading correctly at a performance cost.
+	 * Handles error in module loading correctly at a performance cost. This will handle module error compatible with the EcmaScript Modules spec.
+	 */
+	strictModuleErrorHandling?: StrictModuleErrorHandling;
+	/**
+	 * Handles exceptions in module loading correctly at a performance cost (Deprecated). This will handle module error compatible with the Node.js CommonJS way.
 	 */
 	strictModuleExceptionHandling?: StrictModuleExceptionHandling;
+	/**
+	 * Use a Trusted Types policy to create urls for chunks.
+	 */
+	trustedTypes?: TrustedTypes;
 	/**
 	 * A unique name of the webpack build to avoid multiple webpack runtimes to conflict when using globals.
 	 */

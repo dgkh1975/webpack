@@ -17,6 +17,76 @@ module.exports = (env, { testPath }) => [
 	{
 		resolve: {
 			alias: {
+				library: path.resolve(testPath, "../0-create-library/commonjs-iife.js")
+			}
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("commonjs-iife")
+			})
+		]
+	},
+	{
+		resolve: {
+			alias: {
+				library: path.resolve(testPath, "../0-create-library/amd.js")
+			}
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("amd")
+			})
+		]
+	},
+	{
+		resolve: {
+			alias: {
+				library: path.resolve(testPath, "../0-create-library/amd-iife.js")
+			}
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("amd-iife")
+			})
+		]
+	},
+	{
+		externals: {
+			library: `promise (require(${JSON.stringify(
+				"../0-create-library/amd-runtimeChunk/runtime.js"
+			)}), require(${JSON.stringify(
+				"../0-create-library/amd-runtimeChunk/main.js"
+			)}))`
+		},
+		output: {
+			library: { type: "commonjs-module" }
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("amd-runtimeChunk")
+			})
+		]
+	},
+	{
+		externals: {
+			library: `promise (require(${JSON.stringify(
+				"../0-create-library/amd-iife-runtimeChunk/runtime.js"
+			)}), require(${JSON.stringify(
+				"../0-create-library/amd-iife-runtimeChunk/main.js"
+			)}))`
+		},
+		output: {
+			library: { type: "commonjs-module" }
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("amd-iife-runtimeChunk")
+			})
+		]
+	},
+	{
+		resolve: {
+			alias: {
 				library: path.resolve(testPath, "../0-create-library/umd.js")
 			}
 		},
@@ -40,6 +110,19 @@ module.exports = (env, { testPath }) => [
 		]
 	},
 	{
+		entry: "./this-test.js",
+		resolve: {
+			alias: {
+				library: path.resolve(testPath, "../0-create-library/this-iife.js")
+			}
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("this-iife")
+			})
+		]
+	},
+	{
 		entry: "./var-test.js",
 		resolve: {
 			alias: {
@@ -49,6 +132,49 @@ module.exports = (env, { testPath }) => [
 		plugins: [
 			new webpack.DefinePlugin({
 				NAME: JSON.stringify("var")
+			})
+		]
+	},
+	{
+		entry: "./var-test.js",
+		resolve: {
+			alias: {
+				library: path.resolve(testPath, "../0-create-library/var-iife.js")
+			}
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("var-iife")
+			})
+		]
+	},
+	{
+		resolve: {
+			alias: {
+				library: path.resolve(
+					testPath,
+					"../0-create-library/commonjs-nested.js"
+				)
+			}
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("commonjs-nested")
+			})
+		]
+	},
+	{
+		resolve: {
+			alias: {
+				library: path.resolve(
+					testPath,
+					"../0-create-library/commonjs-nested-iife.js"
+				)
+			}
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("commonjs-nested-iife")
 			})
 		]
 	},
@@ -65,6 +191,23 @@ module.exports = (env, { testPath }) => [
 		plugins: [
 			new webpack.DefinePlugin({
 				NAME: JSON.stringify("commonjs2 with external"),
+				TEST_EXTERNAL: true
+			})
+		]
+	},
+	{
+		resolve: {
+			alias: {
+				library: path.resolve(
+					testPath,
+					"../0-create-library/commonjs2-iife-external.js"
+				),
+				external: path.resolve(__dirname, "node_modules/external.js")
+			}
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("commonjs2-iife with external"),
 				TEST_EXTERNAL: true
 			})
 		]
@@ -134,6 +277,73 @@ module.exports = (env, { testPath }) => [
 			})
 		]
 	},
+	{
+		externals: {
+			library: `promise require(${JSON.stringify(
+				path.resolve(
+					testPath,
+					"../0-create-library/commonjs2-runtimeChunk/main.js"
+				)
+			)})`
+		},
+		output: {
+			library: { type: "commonjs-module" }
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("commonjs2-runtimeChunk")
+			})
+		]
+	},
+	{
+		externals: {
+			library: `promise require(${JSON.stringify(
+				path.resolve(
+					testPath,
+					"../0-create-library/commonjs2-iife-runtimeChunk/main.js"
+				)
+			)})`
+		},
+		output: {
+			library: { type: "commonjs-module" }
+		},
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("commonjs2-iife-runtimeChunk")
+			})
+		]
+	},
+	{
+		externals: {
+			library: `var (require(${JSON.stringify(
+				"../0-create-library/global-runtimeChunk/runtime.js"
+			)}), require(${JSON.stringify(
+				"../0-create-library/global-runtimeChunk/main.js"
+			)}), globalName.x.y)`
+		},
+		target: "web",
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("global-runtimeChunk")
+			})
+		]
+	},
+	{
+		externals: {
+			library: `var (require(${JSON.stringify(
+				"../0-create-library/global-iife-runtimeChunk/runtime.js"
+			)}), require(${JSON.stringify(
+				"../0-create-library/global-iife-runtimeChunk/main.js"
+			)}), globalName.x.y)`
+		},
+		target: "web",
+		plugins: [
+			new webpack.DefinePlugin({
+				NAME: JSON.stringify("global-iife-runtimeChunk")
+			})
+		]
+	},
+
 	{
 		resolve: {
 			alias: {

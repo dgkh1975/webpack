@@ -5,6 +5,7 @@ const fs = require("graceful-fs");
 const vm = require("vm");
 const { URL } = require("url");
 const rimraf = require("rimraf");
+const webpack = require("..");
 const TerserPlugin = require("terser-webpack-plugin");
 const checkArrayExpectation = require("./checkArrayExpectation");
 const createLazyTestEnv = require("./helpers/createLazyTestEnv");
@@ -15,8 +16,6 @@ const CurrentScript = require("./helpers/CurrentScript");
 const prepareOptions = require("./helpers/prepareOptions");
 const { parseResource } = require("../lib/util/identifier");
 const captureStdio = require("./helpers/captureStdio");
-
-let webpack;
 
 const casesPath = path.join(__dirname, "configCases");
 const categories = fs.readdirSync(casesPath).map(cat => {
@@ -34,7 +33,6 @@ const describeCases = config => {
 		let stderr;
 		beforeEach(() => {
 			stderr = captureStdio(process.stderr, true);
-			webpack = require("..");
 		});
 		afterEach(() => {
 			stderr.restore();
@@ -168,9 +166,37 @@ const describeCases = config => {
 								rimraf.sync(outputDirectory);
 								fs.mkdirSync(outputDirectory, { recursive: true });
 								const deprecationTracker = deprecationTracking.start();
-								webpack(options, err => {
+								webpack(options, (err, stats) => {
 									deprecationTracker();
 									if (err) return handleFatalError(err, done);
+									const { modules, children, errorsCount } = stats.toJson({
+										all: false,
+										modules: true,
+										errorsCount: true
+									});
+									if (errorsCount === 0) {
+										const allModules = children
+											? children.reduce(
+													(all, { modules }) => all.concat(modules),
+													modules || []
+											  )
+											: modules;
+										if (
+											allModules.some(
+												m => m.type !== "cached modules" && !m.cached
+											)
+										) {
+											return done(
+												new Error(
+													`Some modules were not cached:\n${stats.toString({
+														all: false,
+														modules: true,
+														modulesSpace: 100
+													})}`
+												)
+											);
+										}
+									}
 									done();
 								});
 							}, 20000);
@@ -323,7 +349,14 @@ const describeCases = config => {
 														options
 													),
 													importScripts: url => {
-														_require(path.dirname(p), options, `./${url}`);
+														expect(url).toMatch(
+															/^https:\/\/test\.cases\/path\//
+														);
+														_require(
+															outputDirectory,
+															options,
+															`.${url.slice("https://test.cases/path".length)}`
+														);
 													},
 													module: m,
 													exports: m.exports,
@@ -350,9 +383,10 @@ const describeCases = config => {
 													moduleScope.window = globalContext;
 													moduleScope.self = globalContext;
 													moduleScope.URL = URL;
-													moduleScope.Worker = require("./helpers/createFakeWorker")(
-														{ outputDirectory }
-													);
+													moduleScope.Worker =
+														require("./helpers/createFakeWorker")({
+															outputDirectory
+														});
 													runInNewContext = true;
 												}
 												if (testConfig.moduleScope) {
@@ -379,7 +413,11 @@ const describeCases = config => {
 												module in testConfig.modules
 											) {
 												return testConfig.modules[module];
-											} else return require(module);
+											} else {
+												return require(module.startsWith("node:")
+													? module.slice(5)
+													: module);
+											}
 										};
 
 										results.push(
